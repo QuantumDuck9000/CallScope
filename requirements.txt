@@ -1,0 +1,5 @@
+click>=8.0
+jinja2>=3.0
+lxml>=4.9
+rich>=13.0
+dpkt>=1.9

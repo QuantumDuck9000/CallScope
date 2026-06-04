@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<recording xmlns="urn:ietf:params:xml:ns:recording:1"
+           xmlns:vendor="urn:example:vendor:siprec:ext:1">
+  <datamode>complete</datamode>
+  <session session_id="hVpd7YQgEReV558xfp6r5A==">
+    <sipSessionID>ab30317f1a784dc48ff824d0d3715d86;remote=47755a9de7794ba387653f2099600 ef2</sipSessionID>
+    <vendor:tag>recorder-cluster-7</vendor:tag>
+  </session>
+  <participant participant_id="srfBElmCRp2QB23b7Mpk0w==">
+    <nameID aor="sip:alice@atlanta.example.com">
+      <name xml:lang="en">Alice</name>
+    </nameID>
+  </participant>
+  <participant participant_id="zSfP-X9aTQyEQbT3uWh8mA==">
+    <nameID aor="sip:bob@biloxi.example.com">
+      <name xml:lang="en">Bob</name>
+    </nameID>
+  </participant>
+  <stream stream_id="UAAMm5GRQKSCMVvLyl4rFw==" session_id="hVpd7YQgEReV558xfp6r5A==">
+    <label>96</label>
+  </stream>
+  <stream stream_id="i1Pz3to5hGk8fuXl+PbwCw==" session_id="hVpd7YQgEReV558xfp6r5A==">
+    <label>97</label>
+  </stream>
+  <sessionrecordingassoc session_id="hVpd7YQgEReV558xfp6r5A==">
+    <associate-time>2026-05-30T14:03:11Z</associate-time>
+  </sessionrecordingassoc>
+  <participantsessionassoc participant_id="srfBElmCRp2QB23b7Mpk0w=="
+                           session_id="hVpd7YQgEReV558xfp6r5A==">
+    <associate-time>2026-05-30T14:03:11Z</associate-time>
+  </participantsessionassoc>
+  <participantsessionassoc participant_id="zSfP-X9aTQyEQbT3uWh8mA=="
+                           session_id="hVpd7YQgEReV558xfp6r5A==">
+    <associate-time>2026-05-30T14:03:11Z</associate-time>
+  </participantsessionassoc>
+  <participantstreamassoc participant_id="srfBElmCRp2QB23b7Mpk0w==">
+    <send>UAAMm5GRQKSCMVvLyl4rFw==</send>
+    <recv>i1Pz3to5hGk8fuXl+PbwCw==</recv>
+  </participantstreamassoc>
+  <participantstreamassoc participant_id="zSfP-X9aTQyEQbT3uWh8mA==">
+    <send>i1Pz3to5hGk8fuXl+PbwCw==</send>
+    <recv>UAAMm5GRQKSCMVvLyl4rFw==</recv>
+  </participantstreamassoc>
+</recording>

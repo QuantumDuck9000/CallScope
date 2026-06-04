@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CallScope SIPREC Report — {{ report.call_id }}</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2230;
+    --panel-2: #222d3d;
+    --border: #2c3a4d;
+    --text: #e6edf3;
+    --muted: #8b9bb0;
+    --accent: #4da3ff;
+    --src: #4da3ff;
+    --srs: #b07cf0;
+    --pass: #3fb950;
+    --info: #58a6ff;
+    --warn: #d29922;
+    --error: #f85149;
+    --critical: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  code, pre, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+  header.top {
+    padding: 18px 24px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border-bottom: 1px solid var(--border);
+  }
+  header.top h1 { margin: 0 0 6px; font-size: 18px; letter-spacing: .3px; }
+  .callid { color: var(--accent); word-break: break-all; }
+  .meta-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px 24px; margin-top: 10px;
+  }
+  .meta-grid div span.k { color: var(--muted); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .meta-grid div span.v { font-size: 14px; }
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-weight: 600; font-size: 12px; letter-spacing: .4px;
+  }
+  .badge.PASS { background: rgba(63,185,80,.15); color: var(--pass); }
+  .badge.INFO { background: rgba(88,166,255,.15); color: var(--info); }
+  .badge.WARN { background: rgba(210,153,34,.18); color: var(--warn); }
+  .badge.ERROR { background: rgba(248,81,73,.18); color: var(--error); }
+  .badge.CRITICAL { background: rgba(255,107,107,.2); color: var(--critical); }
+  .badge.UNKNOWN { background: rgba(139,155,176,.15); color: var(--muted); }
+
+  .cards { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px 24px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; min-width: 120px;
+  }
+  .card .name { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .card .detail { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  main { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; padding: 0 24px 24px; }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  section.block {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden;
+  }
+  section.block > h2 {
+    margin: 0; padding: 12px 16px; font-size: 13px; text-transform: uppercase;
+    letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .ladder { padding: 8px 0; max-height: 620px; overflow-y: auto; }
+  .ladder-actors {
+    display: flex; justify-content: space-between; padding: 6px 18px;
+    color: var(--muted); font-size: 12px; position: sticky; top: 0; background: var(--panel);
+  }
+  .ladder-actors .src { color: var(--src); font-weight: 600; }
+  .ladder-actors .srs { color: var(--srs); font-weight: 600; }
+  .row {
+    display: grid; grid-template-columns: 56px 70px 1fr; gap: 8px; align-items: center;
+    padding: 7px 16px; cursor: pointer; border-left: 3px solid transparent;
+  }
+  .row:hover { background: var(--panel-2); }
+  .row.selected { background: var(--panel-2); border-left-color: var(--accent); }
+  .row .frame { color: var(--muted); font-size: 11px; }
+  .row .time { color: var(--muted); font-size: 11px; }
+  .arrow { display: flex; align-items: center; gap: 8px; }
+  .arrow .glyph { color: var(--muted); }
+  .arrow.SRC_TO_SRS .glyph { color: var(--src); }
+  .arrow.SRS_TO_SRC .glyph { color: var(--srs); }
+  .arrow .label { font-weight: 500; }
+
+  .tabs { display: flex; gap: 2px; padding: 8px 12px 0; flex-wrap: wrap; }
+  .tab {
+    padding: 6px 12px; cursor: pointer; border: 1px solid transparent; border-bottom: none;
+    border-radius: 6px 6px 0 0; color: var(--muted); font-size: 12px;
+  }
+  .tab.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+  .tab-body { padding: 14px 16px; max-height: 560px; overflow: auto; }
+  pre.detail {
+    white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 12.5px;
+    color: var(--text);
+  }
+  .empty { color: var(--muted); font-style: italic; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+  td.mono { font-family: "SFMono-Regular", Consolas, monospace; }
+  .lower { padding: 0 24px 32px; display: grid; gap: 16px; }
+  .finding { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .finding:last-child { border-bottom: none; }
+  .finding .code { color: var(--muted); font-size: 11px; }
+  .finding .ttl { font-weight: 600; }
+  .finding .rec { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .pill { font-size: 10px; padding: 1px 7px; border-radius: 999px; margin-right: 8px; vertical-align: middle; }
+  ul.files { margin: 0; padding: 12px 16px 16px 32px; }
+  ul.files li { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.5px; }
+  /* v2 components */
+  ol.narrative { margin: 0; padding: 12px 16px 16px 34px; line-height: 1.6; }
+  ol.narrative li { margin-bottom: 4px; cursor: default; }
+  ol.narrative li .fref { color: var(--accent, #6aa3ff); cursor: pointer; font-size: 11px; margin-left: 6px; }
+  .timeline-wrap { padding: 12px 16px 16px; overflow-x: auto; }
+  .owner-group { border-bottom: 1px solid var(--border); }
+  .owner-group:last-child { border-bottom: none; }
+  .owner-head { padding: 8px 16px; font-weight: 700; font-size: 12px; letter-spacing: .3px;
+    background: var(--panel-2); display: flex; align-items: center; gap: 8px; }
+  .owner-pill { font-size: 10px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); }
+  .finding.clickable { cursor: pointer; }
+  .finding.clickable:hover { background: var(--panel-2); }
+  .finding .clause { color: var(--muted); font-size: 11px; margin-left: 8px; }
+  .finding .frames { color: var(--accent, #6aa3ff); font-size: 11px; margin-top: 4px; }
+  .row .frame .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-left:5px; vertical-align: middle; }
+  .row.evhi { outline: 2px solid #d98a2b; outline-offset: -2px; }
+  footer { color: var(--muted); font-size: 11px; padding: 0 24px 28px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>CallScope SIPREC Report</h1>
+  <div>Call-ID: <span class="callid mono">{{ report.call_id }}</span></div>
+  <div class="meta-grid">
+    <div><span class="k">Overall Health</span><span class="v"><span class="badge {{ report.overall_health }}">{{ report.overall_health }}</span></span></div>
+    <div><span class="k">Mode</span><span class="v">{{ report.mode }}</span></div>
+    <div><span class="k">Duration</span><span class="v mono">{{ report.duration }}</span></div>
+    <div><span class="k">SRC</span><span class="v mono">{{ report.src.ip }}{% if report.src.port %}:{{ report.src.port }}{% endif %}</span></div>
+    <div><span class="k">SRS</span><span class="v mono">{{ report.srs.ip }}{% if report.srs.port %}:{{ report.srs.port }}{% endif %}</span></div>
+    <div><span class="k">Generated</span><span class="v mono">{{ report.generated_at }}</span></div>
+  </div>
+</header>
+
+<div class="cards" id="cards"></div>
+
+<section class="block" id="narrative-block" style="margin:0 16px 16px;">
+  <h2>What happened</h2>
+  <ol id="narrative" class="narrative"></ol>
+</section>
+
+<section class="block" id="coverage-block" style="margin:0 16px 16px;">
+  <h2>Recording coverage by participant</h2>
+  <div id="coverage" class="timeline-wrap"></div>
+</section>
+
+<section class="block" id="timeline-block" style="margin:0 16px 16px;">
+  <h2>Session timeline</h2>
+  <div id="timeline" class="timeline-wrap"></div>
+</section>
+
+<main>
+  <section class="block">
+    <h2>SIPREC Ladder</h2>
+    <div class="ladder">
+      <div class="ladder-actors"><span class="src">SRC</span><span class="srs">SRS</span></div>
+      <div id="ladder-rows"></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Message Detail</h2>
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="summary">Summary</div>
+      <div class="tab" data-tab="headers">Headers</div>
+      <div class="tab" data-tab="sdp">SDP</div>
+      <div class="tab" data-tab="metadata">SIPREC Metadata</div>
+      <div class="tab" data-tab="raw">Raw</div>
+    </div>
+    <div class="tab-body" id="tab-body">
+      <div class="empty">Select a message in the ladder to inspect it.</div>
+    </div>
+  </section>
+</main>
+
+<div class="lower">
+  <section class="block">
+    <h2>RTP / RTCP Streams</h2>
+    <div id="streams"></div>
+  </section>
+  <section class="block">
+    <h2>Findings by owner</h2>
+    <div id="findings"></div>
+  </section>
+  <section class="block">
+    <h2>Endpoint fingerprint</h2>
+    <div id="fingerprints"></div>
+  </section>
+  <section class="block">
+    <h2>RTCP statistics</h2>
+    <div id="rtcp"></div>
+  </section>
+  <section class="block">
+    <h2>Call quality (MOS)</h2>
+    <div id="mos"></div>
+  </section>
+  <section class="block">
+    <h2>SSRC changes &amp; re-INVITE bursts</h2>
+    <div id="ssrc"></div>
+  </section>
+  <section class="block">
+    <h2>Capture quality &amp; chain of custody</h2>
+    <div id="capture"></div>
+  </section>
+  <section class="block">
+    <h2>Output Files</h2>
+    <ul class="files" id="files"></ul>
+  </section>
+</div>
+
+<footer>Generated by CallScope — offline SIPREC capture report.</footer>
+
+<script id="report-data" type="application/json">{{ report_json | safe }}</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = {};
+  try {
+    DATA = JSON.parse(document.getElementById("report-data").textContent);
+  } catch (e) {
+    DATA = {};
+  }
+  var rows = (DATA.ladder && DATA.ladder.rows) || [];
+
+  // Map each frame number to the worst finding severity referencing it (health dots).
+  var SEV_RANK = { INFO: 1, PASS: 1, WARN: 2, ERROR: 3, CRITICAL: 4 };
+  var frameSev = {};
+  (DATA.findings || []).forEach(function (f) {
+    (f.evidence_frames || []).forEach(function (fr) {
+      if (!frameSev[fr] || SEV_RANK[f.severity] > SEV_RANK[frameSev[fr]]) frameSev[fr] = f.severity;
+    });
+  });
+  function sevColor(sev) {
+    if (sev === "ERROR" || sev === "CRITICAL") return "#d9534f";
+    if (sev === "WARN") return "#d98a2b";
+    return "#5a9";
+  }
+  function highlightFrames(frames) {
+    var set = {}; (frames || []).forEach(function (x) { set[x] = true; });
+    var first = null;
+    Array.prototype.slice.call(document.querySelectorAll(".row")).forEach(function (rEl) {
+      var fr = Number(rEl.querySelector(".frame") && rEl.getAttribute("data-frame"));
+      var on = !!set[fr];
+      rEl.classList.toggle("evhi", on);
+      if (on && !first) first = rEl;
+    });
+    if (first) first.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  var selectedIndex = null;
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+
+  function fmtTime(t) {
+    return (t === null || t === undefined) ? "" : Number(t).toFixed(3) + "s";
+  }
+
+  // Status cards
+  var cards = document.getElementById("cards");
+  (DATA.status_cards || []).forEach(function (c) {
+    var card = el("div", "card");
+    card.appendChild(el("div", "name", c.name));
+    var b = el("span", "badge " + c.status, c.status);
+    var line = el("div");
+    line.appendChild(b);
+    card.appendChild(line);
+    if (c.detail) card.appendChild(el("div", "detail", c.detail));
+    cards.appendChild(card);
+  });
+
+  // Ladder rows
+  var ladderRows = document.getElementById("ladder-rows");
+  rows.forEach(function (r) {
+    var row = el("div", "row");
+    row.setAttribute("data-index", r.index);
+    row.setAttribute("data-frame", r.frame);
+    var frameDiv = el("div", "frame", "#" + r.frame);
+    if (frameSev[r.frame]) {
+      var dot = el("span", "dot");
+      dot.style.background = sevColor(frameSev[r.frame]);
+      frameDiv.appendChild(dot);
+    }
+    row.appendChild(frameDiv);
+    row.appendChild(el("div", "time", fmtTime(r.time_relative)));
+    var arrow = el("div", "arrow " + r.direction);
+    var glyph = (r.direction === "SRS_TO_SRC") ? "\u2190" : "\u2192";
+    arrow.appendChild(el("span", "glyph", glyph));
+    arrow.appendChild(el("span", "label", r.label));
+    row.appendChild(arrow);
+    row.addEventListener("click", function () { select(r.index); });
+    ladderRows.appendChild(row);
+  });
+
+  // Tabs
+  var currentTab = "summary";
+  var tabEls = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  tabEls.forEach(function (t) {
+    t.addEventListener("click", function () {
+      tabEls.forEach(function (x) { x.classList.remove("active"); });
+      t.classList.add("active");
+      currentTab = t.getAttribute("data-tab");
+      renderDetail();
+    });
+  });
+
+  function rowByIndex(i) {
+    for (var k = 0; k < rows.length; k++) { if (rows[k].index === i) return rows[k]; }
+    return null;
+  }
+
+  function select(i) {
+    selectedIndex = i;
+    Array.prototype.slice.call(document.querySelectorAll(".row")).forEach(function (rEl) {
+      rEl.classList.toggle("selected", Number(rEl.getAttribute("data-index")) === i);
+    });
+    renderDetail();
+  }
+
+  function kv(obj) {
+    var pre = el("pre", "detail");
+    pre.textContent = JSON.stringify(obj, null, 2);
+    return pre;
+  }
+
+  function renderDetail() {
+    var body = document.getElementById("tab-body");
+    body.innerHTML = "";
+    if (selectedIndex === null) {
+      body.appendChild(el("div", "empty", "Select a message in the ladder to inspect it."));
+      return;
+    }
+    var r = rowByIndex(selectedIndex);
+    if (!r) return;
+    if (currentTab === "summary") {
+      body.appendChild(kv({
+        frame: r.frame, time_relative: r.time_relative, direction: r.direction,
+        method: r.method, status_code: r.status_code, reason: r.reason,
+        cseq: r.cseq, from: r.from_header, to: r.to_header,
+        contact: r.contact, content_type: r.content_type, label: r.label
+      }));
+    } else if (currentTab === "headers") {
+      var pre = el("pre", "detail"); pre.textContent = r.headers || "(no headers)"; body.appendChild(pre);
+    } else if (currentTab === "sdp") {
+      if (r.sdp) { body.appendChild(kv(r.sdp)); }
+      else { body.appendChild(el("div", "empty", "No SDP in this message.")); }
+    } else if (currentTab === "metadata") {
+      if (r.metadata) {
+        var raw = r.metadata.raw_xml;
+        var copy = JSON.parse(JSON.stringify(r.metadata));
+        delete copy.raw_xml;
+        body.appendChild(kv(copy));
+        if (raw) {
+          body.appendChild(el("h3", null, "Raw metadata XML"));
+          var p = el("pre", "detail"); p.textContent = raw; body.appendChild(p);
+        }
+      } else { body.appendChild(el("div", "empty", "No SIPREC metadata in this message.")); }
+    } else if (currentTab === "raw") {
+      var rp = el("pre", "detail"); rp.textContent = r.raw || "(empty)"; body.appendChild(rp);
+    }
+  }
+
+  // Streams table
+  var streamsDiv = document.getElementById("streams");
+  var streams = DATA.streams || [];
+  var noiseCount = DATA.noise_stream_count || 0;
+  if (!streams.length) {
+    streamsDiv.appendChild(el("div", "empty", "No RTP/RTCP streams observed."));
+    streamsDiv.firstChild.style.padding = "12px 16px";
+  } else {
+    if (noiseCount) {
+      var note = el("div", "rec"); note.style.cssText = "padding:8px 16px;font-size:12px;color:var(--muted)";
+      note.textContent = (DATA.substantial_stream_count || 0) + " media stream(s) + " + noiseCount + " noise stream(s) (STUN / RTCP-mux SR / codec stragglers, shown greyed below).";
+      streamsDiv.appendChild(note);
+    }
+    var table = el("table");
+    var thead = el("thead");
+    var htr = el("tr");
+    ["SSRC", "Participant", "Src", "Dst", "PT", "Packets", "First", "Last", "Gaps", "RTCP", "Label"].forEach(function (h) {
+      htr.appendChild(el("th", null, h));
+    });
+    thead.appendChild(htr); table.appendChild(thead);
+    var tb = el("tbody");
+    streams.forEach(function (s) {
+      var tr = el("tr");
+      if (s.is_noise) tr.style.opacity = "0.45";
+      function eps(e) { return e ? (e.ip + (e.port ? ":" + e.port : "")) : ""; }
+      var who = s.participant_name || (s.participant_aor ? s.participant_aor.replace(/^sip:/, "").split("@")[0] : "");
+      tr.appendChild(el("td", "mono", s.ssrc || ""));
+      var ptd = el("td"); 
+      if (who) ptd.textContent = who;
+      else if (s.is_noise) { var nb = el("span","badge WARN","noise"); nb.style.fontSize="10px"; ptd.appendChild(nb); }
+      tr.appendChild(ptd);
+      tr.appendChild(el("td", "mono", eps(s.src)));
+      tr.appendChild(el("td", "mono", eps(s.dst)));
+      tr.appendChild(el("td", "mono", s.payload_type === null ? "" : String(s.payload_type)));
+      tr.appendChild(el("td", null, String(s.packet_count)));
+      tr.appendChild(el("td", "mono", fmtTime(s.first_time)));
+      tr.appendChild(el("td", "mono", fmtTime(s.last_time)));
+      tr.appendChild(el("td", null, String(s.sequence_gaps)));
+      var rtcp = el("td"); rtcp.appendChild(el("span", "badge " + (s.rtcp_observed ? "PASS" : "WARN"), s.rtcp_observed ? "yes" : "no")); tr.appendChild(rtcp);
+      tr.appendChild(el("td", "mono", s.matched_sdp_label || ""));
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    streamsDiv.appendChild(table);
+  }
+
+  // Findings grouped by owner, click to highlight evidence frames in the ladder.
+  var findingsDiv = document.getElementById("findings");
+  var byOwner = DATA.findings_by_owner || {};
+  var OWNER_ORDER = ["SBC", "GENESYS", "NETWORK", "CAPTURE", "UNPROVABLE", "UNKNOWN"];
+  var OWNER_LABEL = {
+    SBC: "SBC — provable from this capture", GENESYS: "Genesys / recorder",
+    NETWORK: "Network / recording path", CAPTURE: "Capture quality",
+    UNPROVABLE: "Not provable from SIPREC alone", UNKNOWN: "Unclassified"
+  };
+  var totalFindings = (DATA.findings || []).length;
+  if (!totalFindings) {
+    var ok = el("div", "finding");
+    ok.innerHTML = '<span class="pill badge PASS">PASS</span><span class="ttl">No issues detected.</span>';
+    findingsDiv.appendChild(ok);
+  } else {
+    OWNER_ORDER.forEach(function (owner) {
+      var items = byOwner[owner] || [];
+      if (!items.length) return;
+      var group = el("div", "owner-group");
+      var head = el("div", "owner-head");
+      head.appendChild(el("span", "owner-pill", owner));
+      head.appendChild(el("span", null, OWNER_LABEL[owner] + " (" + items.length + ")"));
+      group.appendChild(head);
+      items.forEach(function (f) {
+        var d = el("div", "finding clickable");
+        var h = el("div");
+        h.appendChild(el("span", "pill badge " + f.severity, f.severity));
+        h.appendChild(el("span", "ttl", f.title));
+        if (f.clause) h.appendChild(el("span", "clause", f.clause));
+        d.appendChild(h);
+        d.appendChild(el("div", "code", f.code));
+        d.appendChild(el("div", null, f.detail));
+        if (f.recommendation) d.appendChild(el("div", "rec", "\u2192 " + f.recommendation));
+        if (f.evidence_frames && f.evidence_frames.length) {
+          d.appendChild(el("div", "frames", "Evidence: frames " + f.evidence_frames.join(", ")));
+          d.addEventListener("click", function () { highlightFrames(f.evidence_frames); });
+        }
+        group.appendChild(d);
+      });
+      findingsDiv.appendChild(group);
+    });
+  }
+
+  // Narrative
+  var narrDiv = document.getElementById("narrative");
+  var narrative = DATA.narrative || [];
+  if (!narrative.length) {
+    document.getElementById("narrative-block").style.display = "none";
+  } else {
+    narrative.forEach(function (s) {
+      var li = el("li", null, s.text);
+      if (s.frame_number) {
+        var ref = el("span", "fref", "frame " + s.frame_number);
+        ref.addEventListener("click", function () { highlightFrames([s.frame_number]); });
+        li.appendChild(ref);
+      }
+      narrDiv.appendChild(li);
+    });
+  }
+
+  // Fingerprints
+  var fpDiv = document.getElementById("fingerprints");
+  var fps = DATA.fingerprints || [];
+  if (!fps.length) { fpDiv.appendChild(el("div", "empty", "No endpoint fingerprint available.")); fpDiv.firstChild.style.padding = "12px 16px"; }
+  else {
+    var ftab = el("table"), fth = el("thead"), fhr = el("tr");
+    ["Actor", "IP", "User-Agent / Server", "Via sent-by", "SDP origin"].forEach(function (h) { fhr.appendChild(el("th", null, h)); });
+    fth.appendChild(fhr); ftab.appendChild(fth);
+    var ftb = el("tbody");
+    fps.forEach(function (fp) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, fp.actor));
+      tr.appendChild(el("td", "mono", fp.ip || ""));
+      tr.appendChild(el("td", null, fp.user_agent || fp.server || "\u2014"));
+      tr.appendChild(el("td", "mono", fp.via_sent_by || "\u2014"));
+      tr.appendChild(el("td", "mono", fp.sdp_origin_addr || "\u2014"));
+      ftb.appendChild(tr);
+    });
+    ftab.appendChild(ftb); fpDiv.appendChild(ftab);
+  }
+
+  // RTCP stats
+  var rtcpDiv = document.getElementById("rtcp");
+  var rtcp = DATA.rtcp_stats || [];
+  var rsum = DATA.rtcp_packet_summary || {};
+  if (!rtcp.length) {
+    var msg;
+    if (rsum.total) {
+      var by = rsum.by_type || {};
+      msg = rsum.total + " RTCP packet(s) seen (" +
+        (by.SR || 0) + " SR, " + (by.RR || 0) + " RR, " + (by.SDES || 0) + " SDES" +
+        (rsum.muxed_as_rtp ? ", " + rsum.muxed_as_rtp + " rtcp-mux" : "") +
+        ") but no reception report blocks — packet loss, jitter and MOS cannot be scored from this capture.";
+    } else {
+      msg = "No RTCP observed.";
+    }
+    var e = el("div", "empty", msg); e.style.padding = "12px 16px"; rtcpDiv.appendChild(e);
+  }
+  else {
+    var rt = el("table"), rh = el("thead"), rhr = el("tr");
+    ["SSRC", "Reports", "Max loss", "Cum. lost", "Jitter avg", "Jitter max", "Max gap (s)", "BYE"].forEach(function (h) { rhr.appendChild(el("th", null, h)); });
+    rh.appendChild(rhr); rt.appendChild(rh);
+    var rtb = el("tbody");
+    rtcp.forEach(function (s) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "mono", s.ssrc || "\u2014"));
+      tr.appendChild(el("td", null, String(s.report_count)));
+      tr.appendChild(el("td", null, s.fraction_lost_max === null ? "\u2014" : (s.fraction_lost_max * 100).toFixed(1) + "%"));
+      tr.appendChild(el("td", null, s.cumulative_lost === null ? "\u2014" : String(s.cumulative_lost)));
+      tr.appendChild(el("td", null, s.jitter_avg === null ? "\u2014" : s.jitter_avg.toFixed(1)));
+      tr.appendChild(el("td", null, s.jitter_max === null ? "\u2014" : s.jitter_max.toFixed(1)));
+      tr.appendChild(el("td", null, s.max_report_gap_s === null ? "\u2014" : s.max_report_gap_s.toFixed(1)));
+      var bt = el("td"); bt.appendChild(el("span", "badge " + (s.rtcp_bye_seen ? "INFO" : "PASS"), s.rtcp_bye_seen ? "yes" : "no")); tr.appendChild(bt);
+      rtb.appendChild(tr);
+    });
+    rt.appendChild(rtb); rtcpDiv.appendChild(rt);
+  }
+
+  // SSRC changes + bursts
+  var ssrcDiv = document.getElementById("ssrc");
+  var changes = DATA.ssrc_changes || [], bursts = DATA.bursts || [];
+  if (!changes.length && !bursts.length) { ssrcDiv.appendChild(el("div", "empty", "No SSRC changes or re-INVITE bursts.")); ssrcDiv.firstChild.style.padding = "12px 16px"; }
+  else {
+    var ul = el("ul"); ul.style.padding = "12px 16px 12px 32px"; ul.style.margin = "0"; ul.style.fontSize = "12.5px";
+    changes.forEach(function (c) {
+      ul.appendChild(el("li", null, "SSRC " + (c.from_ssrc || "?") + " \u2192 " + (c.to_ssrc || "?") + " at t=" + (c.time_relative === null ? "?" : c.time_relative.toFixed(1) + "s") + " on " + c.flow_key));
+    });
+    bursts.forEach(function (b) {
+      var t = "Re-INVITE burst: " + b.count + " messages (t=" + (b.window_start || 0).toFixed(1) + "\u2013" + (b.window_end || 0).toFixed(1) + "s)" + (b.codec_renegotiation ? " with codec renegotiation" : "");
+      var li = el("li", null, t);
+      if (b.evidence_frames && b.evidence_frames.length) {
+        var ref = el("span", "fref", " frames " + b.evidence_frames.join(", "));
+        ref.addEventListener("click", function () { highlightFrames(b.evidence_frames); });
+        li.appendChild(ref);
+      }
+      ul.appendChild(li);
+    });
+    ssrcDiv.appendChild(ul);
+  }
+
+  // Capture quality / chain of custody
+  var capDiv = document.getElementById("capture");
+  var cap = DATA.capture_quality;
+  if (!cap) { capDiv.appendChild(el("div", "empty", "No capture-quality data.")); capDiv.firstChild.style.padding = "12px 16px"; }
+  else {
+    var wrap = el("div"); wrap.style.padding = "12px 16px"; wrap.style.fontSize = "12.5px";
+    var flags = [];
+    if (cap.truncated) flags.push("snaplen-truncated (" + cap.snaplen + ")");
+    if (cap.drop_count) flags.push(cap.drop_count + " dropped");
+    wrap.appendChild(el("div", null, "Status: " + (flags.length ? flags.join(", ") : "no truncation/drops reported")));
+    var keys = Object.keys(cap.file_checksums || {});
+    if (keys.length) {
+      wrap.appendChild(el("div", null, "Source capture SHA-256:"));
+      var cul = el("ul"); cul.style.margin = "4px 0 0"; cul.style.paddingLeft = "20px";
+      keys.forEach(function (k) {
+        var name = k.split("/").pop();
+        var li = el("li", "mono"); li.style.fontSize = "11px";
+        li.textContent = cap.file_checksums[k] + "  " + name;
+        cul.appendChild(li);
+      });
+      wrap.appendChild(cul);
+    }
+    (cap.notes || []).forEach(function (n) { wrap.appendChild(el("div", "rec", n)); });
+    capDiv.appendChild(wrap);
+  }
+
+  // Timeline (signaling lane + SSRC swimlanes), drawn as inline SVG.
+  renderTimeline();
+  function renderTimeline() {
+    var tlDiv = document.getElementById("timeline");
+    var streamsT = DATA.streams || [];
+    var sigTimes = rows.filter(function (r) { return r.time_relative !== null && r.time_relative !== undefined; });
+    var maxT = 0;
+    sigTimes.forEach(function (r) { if (r.time_relative > maxT) maxT = r.time_relative; });
+    streamsT.forEach(function (s) { if (s.last_time && s.last_time > maxT) maxT = s.last_time; });
+    if (maxT <= 0) { document.getElementById("timeline-block").style.display = "none"; return; }
+    var W = 900, padL = 70, padR = 20, laneH = 22, topH = 46;
+    var laneCount = streamsT.length;
+    var H = topH + 28 + laneCount * laneH + 16;
+    function x(t) { return padL + (t / maxT) * (W - padL - padR); }
+    var svgNS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("width", "100%");
+    function rect(xx, yy, ww, hh, fill, rx) { var e = document.createElementNS(svgNS, "rect"); e.setAttribute("x", xx); e.setAttribute("y", yy); e.setAttribute("width", Math.max(1, ww)); e.setAttribute("height", hh); e.setAttribute("fill", fill); if (rx) e.setAttribute("rx", rx); svg.appendChild(e); return e; }
+    function txt(xx, yy, s, fill, anchor, size) { var e = document.createElementNS(svgNS, "text"); e.setAttribute("x", xx); e.setAttribute("y", yy); e.setAttribute("fill", fill || "#9aa"); e.setAttribute("font-size", size || 10); if (anchor) e.setAttribute("text-anchor", anchor); e.textContent = s; svg.appendChild(e); }
+    function line(x1, y1, x2, y2, stroke) { var e = document.createElementNS(svgNS, "line"); e.setAttribute("x1", x1); e.setAttribute("y1", y1); e.setAttribute("x2", x2); e.setAttribute("y2", y2); e.setAttribute("stroke", stroke || "#333"); svg.appendChild(e); }
+    // time axis
+    for (var g = 0; g <= 4; g++) { var tt = maxT * g / 4; line(x(tt), topH - 8, x(tt), H - 8, "#2a2f36"); txt(x(tt), topH - 12, tt.toFixed(0) + "s", "#777", "middle"); }
+    // signaling lane: a dot per SIP message, colored by health
+    txt(8, topH + 4, "SIP", "#9aa");
+    sigTimes.forEach(function (r) {
+      var c = document.createElementNS(svgNS, "circle");
+      c.setAttribute("cx", x(r.time_relative)); c.setAttribute("cy", topH); c.setAttribute("r", 4);
+      c.setAttribute("fill", frameSev[r.frame] ? sevColor(frameSev[r.frame]) : "#6aa3ff");
+      c.style.cursor = "pointer";
+      var ttl = document.createElementNS(svgNS, "title"); ttl.textContent = "#" + r.frame + " " + r.label; c.appendChild(ttl);
+      c.addEventListener("click", function () { highlightFrames([r.frame]); });
+      svg.appendChild(c);
+    });
+    // SSRC swimlanes
+    streamsT.forEach(function (s, i) {
+      var y = topH + 28 + i * laneH;
+      var label = s.ssrc || ("PT " + s.payload_type);
+      txt(8, y + laneH / 2 + 3, label, "#9aa", null, 9.5);
+      var x0 = x(s.first_time || 0), x1 = x(s.last_time || s.first_time || 0);
+      rect(x0, y + 3, x1 - x0, laneH - 8, "#3b6e4f", 3);
+    });
+    // SSRC change markers
+    (DATA.ssrc_changes || []).forEach(function (ch) {
+      if (ch.time_relative === null || ch.time_relative === undefined) return;
+      line(x(ch.time_relative), topH + 24, x(ch.time_relative), H - 10, "#d98a2b");
+    });
+    // Hold/retrieve markers
+    (DATA.hold_retrieve_events || []).forEach(function (ev) {
+      if (ev.time_relative === null || ev.time_relative === undefined) return;
+      var color = ev.kind === "HOLD" ? "#888" : "#4a90d9";
+      line(x(ev.time_relative), topH - 6, x(ev.time_relative), H - 10, color);
+      txt(x(ev.time_relative), H - 2, ev.kind === "HOLD" ? "hold" : "retr", color, "middle", 8.5);
+    });
+    tlDiv.appendChild(svg);
+  }
+
+  // Recording-coverage bars per participant label.
+  renderCoverage();
+  renderMos();
+  function renderMos() {
+    var div = document.getElementById("mos");
+    var ests = DATA.mos_estimates || [];
+    if (!ests.length) { div.appendChild(el("div", "empty", "No RTCP reports to estimate MOS from.")); div.firstChild.style.padding = "12px 16px"; return; }
+    function mosColor(m) { return m < 2.6 ? "#c0392b" : (m < 3.6 ? "#d98a2b" : "#3b8f57"); }
+
+    // Summary table.
+    var tab = el("table"), th = el("thead"), hr = el("tr");
+    ["Stream", "Codec", "MOS avg", "MOS min", "Avg loss", "Avg jitter", "Assumed delay"].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+    th.appendChild(hr); tab.appendChild(th);
+    var tb = el("tbody");
+    ests.forEach(function (e) {
+      var tr = el("tr");
+      var who = e.participant || (e.label ? "label " + e.label : (e.ssrc || "stream"));
+      tr.appendChild(el("td", null, who));
+      tr.appendChild(el("td", "mono", e.codec));
+      var avg = el("td"); avg.appendChild(el("span", "badge", e.mos_avg.toFixed(1))); avg.firstChild.style.background = mosColor(e.mos_avg); avg.firstChild.style.color = "#fff"; tr.appendChild(avg);
+      var mn = el("td"); mn.appendChild(el("span", "badge", e.mos_min.toFixed(1))); mn.firstChild.style.background = mosColor(e.mos_min); mn.firstChild.style.color = "#fff"; tr.appendChild(mn);
+      tr.appendChild(el("td", null, e.loss_pct_avg.toFixed(1) + "%"));
+      tr.appendChild(el("td", null, e.jitter_ms_avg.toFixed(0) + "ms"));
+      tr.appendChild(el("td", "mono", e.one_way_delay_ms.toFixed(0) + "ms"));
+      tb.appendChild(tr);
+    });
+    tab.appendChild(tb); div.appendChild(tab);
+
+    // Trend chart: MOS over time per stream (only streams with >1 sample).
+    var trended = ests.filter(function (e) { return (e.samples || []).length > 1; });
+    var maxT = 0;
+    trended.forEach(function (e) { e.samples.forEach(function (s) { if (s.time_relative > maxT) maxT = s.time_relative; }); });
+    if (!trended.length || maxT <= 0) return;
+    var W = 900, padL = 44, padR = 16, padT = 12, padB = 24, H = 220;
+    function x(t) { return padL + (t / maxT) * (W - padL - padR); }
+    function y(m) { return padT + (4.5 - m) / (4.5 - 1.0) * (H - padT - padB); }
+    var svgNS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("width", "100%");
+    svg.style.marginTop = "12px";
+    function line(x1, y1, x2, y2, stroke, w, dash) { var e = document.createElementNS(svgNS, "line"); e.setAttribute("x1", x1); e.setAttribute("y1", y1); e.setAttribute("x2", x2); e.setAttribute("y2", y2); e.setAttribute("stroke", stroke); if (w) e.setAttribute("stroke-width", w); if (dash) e.setAttribute("stroke-dasharray", dash); svg.appendChild(e); }
+    function txt(xx, yy, s, fill, anchor, size) { var e = document.createElementNS(svgNS, "text"); e.setAttribute("x", xx); e.setAttribute("y", yy); e.setAttribute("fill", fill || "#9aa"); e.setAttribute("font-size", size || 10); if (anchor) e.setAttribute("text-anchor", anchor); e.textContent = s; svg.appendChild(e); }
+    // MOS gridlines + threshold bands
+    [1, 2, 3, 4, 4.5].forEach(function (m) { line(padL, y(m), W - padR, y(m), "#2a2f36", 1); txt(padL - 6, y(m) + 3, m.toFixed(1), "#777", "end", 9); });
+    line(padL, y(3.6), W - padR, y(3.6), "#d98a2b", 1, "4 3");
+    line(padL, y(2.6), W - padR, y(2.6), "#c0392b", 1, "4 3");
+    var palette = ["#6aa3ff", "#5ec8a0", "#d98a2b", "#b07ad9", "#d96aa3"];
+    trended.forEach(function (e, idx) {
+      var col = palette[idx % palette.length];
+      var pts = e.samples.filter(function (s) { return s.time_relative != null; }).map(function (s) { return x(s.time_relative) + "," + y(s.mos); });
+      var pl = document.createElementNS(svgNS, "polyline"); pl.setAttribute("points", pts.join(" ")); pl.setAttribute("fill", "none"); pl.setAttribute("stroke", col); pl.setAttribute("stroke-width", "1.8"); svg.appendChild(pl);
+      e.samples.forEach(function (s) { if (s.time_relative == null) return; var c = document.createElementNS(svgNS, "circle"); c.setAttribute("cx", x(s.time_relative)); c.setAttribute("cy", y(s.mos)); c.setAttribute("r", 2.5); c.setAttribute("fill", col); var t = document.createElementNS(svgNS, "title"); t.textContent = "t=" + s.time_relative.toFixed(0) + "s  MOS " + s.mos.toFixed(1) + "  loss " + s.loss_pct.toFixed(1) + "%  jitter " + s.jitter_ms.toFixed(0) + "ms"; c.appendChild(t); svg.appendChild(c); });
+      // legend
+      txt(padL + idx * 150, H - 6, (e.participant || e.label || e.ssrc || "stream"), col, null, 10);
+    });
+    div.appendChild(svg);
+  }
+  function renderCoverage() {
+    var covDiv = document.getElementById("coverage");
+    var lcs = DATA.label_lifecycles || [];
+    var gaps = DATA.coverage_gaps || [];
+    if (!lcs.length) { document.getElementById("coverage-block").style.display = "none"; return; }
+    var maxT = 0;
+    lcs.forEach(function (lc) { (lc.segments || []).forEach(function (s) { if (s.last_time > maxT) maxT = s.last_time; }); });
+    if (maxT <= 0) { document.getElementById("coverage-block").style.display = "none"; return; }
+    var W = 900, padL = 140, padR = 20, rowH = 30;
+    var H = 24 + lcs.length * rowH + 24;
+    function x(t) { return padL + (t / maxT) * (W - padL - padR); }
+    var svgNS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H); svg.setAttribute("width", "100%");
+    function rect(xx, yy, ww, hh, fill, rx, title) {
+      var e = document.createElementNS(svgNS, "rect");
+      e.setAttribute("x", xx); e.setAttribute("y", yy); e.setAttribute("width", Math.max(1, ww)); e.setAttribute("height", hh);
+      e.setAttribute("fill", fill); if (rx) e.setAttribute("rx", rx);
+      if (title) { var t = document.createElementNS(svgNS, "title"); t.textContent = title; e.appendChild(t); }
+      svg.appendChild(e); return e;
+    }
+    function txt(xx, yy, s, fill, anchor, size) {
+      var e = document.createElementNS(svgNS, "text"); e.setAttribute("x", xx); e.setAttribute("y", yy);
+      e.setAttribute("fill", fill || "#9aa"); e.setAttribute("font-size", size || 11); if (anchor) e.setAttribute("text-anchor", anchor);
+      e.textContent = s; svg.appendChild(e);
+    }
+    // time axis
+    for (var g = 0; g <= 4; g++) { var tt = maxT * g / 4; txt(x(tt), 14, tt.toFixed(0) + "s", "#777", "middle", 10); }
+    lcs.forEach(function (lc, i) {
+      var y = 24 + i * rowH;
+      txt(8, y + rowH / 2 + 2, (lc.participant || ("label " + lc.label)), "#cdd", null, 11);
+      // grey baseline track
+      rect(padL, y + 6, W - padL - padR, rowH - 16, "#2a2f36", 2);
+      // green = each SSRC segment covered
+      (lc.segments || []).forEach(function (s) {
+        var x0 = x(s.first_time || 0), x1 = x(s.last_time || s.first_time || 0);
+        rect(x0, y + 6, x1 - x0, rowH - 16, "#3b8f57", 2, (s.ssrc || "") + " " + (s.first_time || 0).toFixed(1) + "-" + (s.last_time || 0).toFixed(1) + "s");
+      });
+      // red = coverage gaps on this label
+      gaps.filter(function (gp) { return gp.label === lc.label; }).forEach(function (gp) {
+        var x0 = x(gp.start_time || 0), x1 = x(gp.end_time || gp.start_time || 0);
+        rect(x0, y + 6, x1 - x0, rowH - 16, "#c0392b", 2,
+          "Estimated gap " + (gp.duration_s ? gp.duration_s.toFixed(0) + "s" : "") + ": " + gp.old_ssrc + " -> " + gp.new_ssrc);
+      });
+    });
+    covDiv.appendChild(svg);
+    if (gaps.length) {
+      var note = el("div", "rec");
+      note.style.padding = "8px 0 0";
+      note.style.color = "#e0a";
+      note.textContent = "Red = estimated recording gap (SSRC changed and a recorder tracking the prior SSRC would miss audio).";
+      covDiv.appendChild(note);
+    }
+  }
+
+
+  // Output files
+  var filesUl = document.getElementById("files");
+  (DATA.output_files || []).forEach(function (name) {
+    filesUl.appendChild(el("li", null, name));
+  });
+})();
+</script>
+</body>
+</html>
